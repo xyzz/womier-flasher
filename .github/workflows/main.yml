@@ -5,7 +5,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-16.04
 
     steps:
@@ -27,3 +27,23 @@ jobs:
       with:
         name: flasher-linux
         path: target/out
+
+  build-mac:
+    runs-on: macos-10.15
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.6.x'
+
+    - name: Setup venv
+      run: python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+
+    - name: Build
+      run: source venv/bin/activate && fbs freeze
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: flasher-mac
+        path: target
