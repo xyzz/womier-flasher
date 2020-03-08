@@ -50,3 +50,28 @@ jobs:
       with:
         name: flasher-mac
         path: target
+
+  build-win:
+    runs-on: windows-2019
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.6.x'
+
+    - name: Setup venv
+      run: |
+        python -m venv venv
+        . .\venv\Scripts\activate.ps1
+        pip install -r requirements.txt
+
+    - name: Build
+      run: |
+        . .\venv\Scripts\activate.ps1
+        fbs freeze
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: flasher-win
+        path: target
