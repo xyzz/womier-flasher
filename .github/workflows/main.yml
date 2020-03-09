@@ -18,13 +18,17 @@ jobs:
         python-version: '3.6.x'
 
     - name: Setup venv
-      run: python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
 
     - name: Build
-      run: source venv/bin/activate && fbs freeze
-
-    - name: Prepare package
-      run: cd target && tar cfJ flasher-linux.tar.xz "Womier Flasher"
+      run: |
+        source venv/bin/activate
+        fbs freeze
+        cd target
+        tar cfJ flasher-linux.tar.xz "Womier Flasher"
 
     - uses: actions/upload-artifact@v1
       with:
@@ -41,7 +45,10 @@ jobs:
         python-version: '3.6.x'
 
     - name: Setup venv
-      run: python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
 
     - name: Build
       run: |
@@ -73,9 +80,9 @@ jobs:
       run: |
         . .\venv\Scripts\activate.ps1
         fbs freeze
-        Remove-Item target\PyInstaller -Recurse -Force
+        Compress-Archive -Path "target\Womier Flasher" -DestinationPath flasher-win.zip
 
     - uses: actions/upload-artifact@v1
       with:
         name: flasher-win
-        path: target
+        path: flasher-win.zip
