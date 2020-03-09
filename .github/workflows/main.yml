@@ -24,12 +24,12 @@ jobs:
       run: source venv/bin/activate && fbs freeze
 
     - name: Prepare package
-      run: mkdir target/out && mv "target/Womier Flasher" "target/out/Womier Flasher"
+      run: cd target && tar cfJ flasher-linux.tar.xz "Womier Flasher"
 
     - uses: actions/upload-artifact@v1
       with:
         name: flasher-linux
-        path: target/out
+        path: target/flasher-linux.tar.xz
 
   build-mac:
     runs-on: macos-10.15
@@ -44,12 +44,15 @@ jobs:
       run: python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 
     - name: Build
-      run: source venv/bin/activate && fbs freeze
+      run: |
+        source venv/bin/activate
+        fbs freeze
+        hdiutil create -volname "Womier Flasher" -srcfolder "target/Womier Flasher.app" -ov -format UDZO flasher-mac.dmg
 
     - uses: actions/upload-artifact@v1
       with:
         name: flasher-mac
-        path: target
+        path: flasher-mac.dmg
 
   build-win:
     runs-on: windows-2019
@@ -70,6 +73,7 @@ jobs:
       run: |
         . .\venv\Scripts\activate.ps1
         fbs freeze
+        Remove-Item target\PyInstaller -Recurse -Force
 
     - uses: actions/upload-artifact@v1
       with:
