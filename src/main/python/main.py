@@ -25,7 +25,7 @@ CMD_REBOOT = CMD_BASE + 7
 EXPECTED_STATUS = 0xFAFAFAFA
 
 DEVICE_DESC = {
-    (1, 2): "Womier K66",  # TODO
+    (0x0c45, 0x7698): "Womier K66",
     (0x0c45, 0x7010): "Womier K66 (bootloader)"
 }
 
@@ -93,6 +93,16 @@ def cmd_flash(dev, offset, firmware, progress_cb=console_progress, complete_cb=c
     hid_set_feature(dev, struct.pack("<I", CMD_REBOOT))
     complete_cb()
 
+
+def cmd_reboot(dev, progress_cb=console_progress, complete_cb=console_complete, error_cb=console_error):
+    progress_cb("Reboot to bootloader", 0)
+    data = b"\x00" + struct.pack("<II", 0x5AA555AA, 0xCC3300FF)
+    data += b"\x00" * (64 - len(data))
+    print(dev.send_feature_report(data))
+    progress_cb("Reboot to bootloader", 0.5)
+    time.sleep(5)
+    complete_cb()
+
 class MainWindow(QWidget):
 
     progress_signal = pyqtSignal(object)
@@ -108,6 +118,9 @@ class MainWindow(QWidget):
         self.complete_signal.connect(self._on_complete)
         self.error_signal.connect(self._on_error)
 
+        lbl_warning = QLabel("<font color='red'><b>Make sure jumploader is installed before you flash QMK</b></font>")
+        lbl_warning.setWordWrap(True)
+
         btn_flash_qmk = QPushButton("Flash QMK...")
         btn_flash_qmk.clicked.connect(self.on_click_flash_qmk)
 
@@ -115,6 +128,7 @@ class MainWindow(QWidget):
         lbl_help.setWordWrap(True)
 
         btn_reboot_bl = QPushButton("Reboot to Bootloader")
+        btn_reboot_bl.clicked.connect(self.on_click_reboot)
         btn_flash_jumploader = QPushButton("Flash Jumploader")
         btn_restore_stock = QPushButton("Revert to Stock Firmware")
         btn_restore_stock.clicked.connect(self.on_click_revert)
@@ -135,6 +149,7 @@ class MainWindow(QWidget):
 
         layout_qmk = QVBoxLayout()
         layout_qmk.setAlignment(Qt.AlignTop)
+        layout_qmk.addWidget(lbl_warning)
         layout_qmk.addWidget(btn_flash_qmk)
         layout_qmk.addWidget(lbl_help)
 
@@ -188,6 +203,7 @@ class MainWindow(QWidget):
 
     def _on_complete(self, args):
         self.progress_label.setText("Finished")
+        self.on_click_refresh()
         self.unlock_user()
 
     def _on_error(self, msg):
@@ -211,7 +227,7 @@ class MainWindow(QWidget):
         for dev in hid.enumerate():
             vid, pid = dev["vendor_id"], dev["product_id"]
             if (vid, pid) in DEVICE_DESC:
-                self.combobox_devices.addItem("{} [{:04X}:{:04X}]".format(DEVICE_DESC[(vid, pid)], vid, pid))
+                self.combobox_devices.addItem("{} [{:04X}:{:04X}:{:02X}]".format(DEVICE_DESC[(vid, pid)], vid, pid, dev["interface_number"]))
                 self.devices.append(dev)
 
     def get_active_device(self):
@@ -265,6 +281,13 @@ class MainWindow(QWidget):
             return
 
         threading.Thread(target=lambda: cmd_flash(self.dev, QMK_OFFSET, firmware, self.on_progress, self.on_complete, self.on_error)).start()
+
+    def on_click_reboot(self):
+        self.dev = self.get_active_device()
+        if not self.dev:
+            return
+
+        threading.Thread(target=lambda: cmd_reboot(self.dev, self.on_progress, self.on_complete, self.on_error)).start()
 
     def on_click_revert(self):
         reply = QMessageBox.question(self, "Warning", "This is a potentially dangerous operation, are you sure you want to continue?",
