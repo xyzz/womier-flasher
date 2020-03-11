@@ -92,17 +92,6 @@ def cmd_flash(dev, offset, firmware, progress_cb=console_progress, complete_cb=c
     hid_set_feature(dev, struct.pack("<I", CMD_REBOOT))
     complete_cb()
 
-class CustomProgressBar(QProgressBar):
-    def __init__(self):
-        super().__init__()
-        self._text = None
-
-    def setText(self, text):
-        self._text = text
-
-    def text(self):
-        return self._text
-
 class MainWindow(QWidget):
 
     progress_signal = pyqtSignal(object)
@@ -128,8 +117,9 @@ class MainWindow(QWidget):
         btn_flash_jumploader = QPushButton("Flash Jumploader")
         btn_restore_stock = QPushButton("Revert to Stock Firmware")
 
-        self.progress = CustomProgressBar()
+        self.progress = QProgressBar()
         self.progress.setRange(0, 100)
+        self.progress_label = QLabel("Ready")
 
         self.combobox_devices = QComboBox()
         btn_refresh_devices = QToolButton()
@@ -152,20 +142,27 @@ class MainWindow(QWidget):
         layout_stock.addWidget(btn_flash_jumploader)
         layout_stock.addWidget(btn_restore_stock)
 
+        layout_progress = QVBoxLayout()
+        layout_progress.addWidget(self.progress_label)
+        layout_progress.addWidget(self.progress)
+
         group_qmk = QGroupBox("QMK")
         group_qmk.setLayout(layout_qmk)
 
         group_stock = QGroupBox("Stock")
         group_stock.setLayout(layout_stock)
 
+        group_progress = QGroupBox("")
+        group_progress.setLayout(layout_progress)
+
         group_layout = QHBoxLayout()
         group_layout.addWidget(group_qmk)
         group_layout.addWidget(group_stock)
 
         layout = QVBoxLayout()
-        layout.addLayout(devices_layout)
-        layout.addLayout(group_layout)
-        layout.addWidget(self.progress)
+        layout.addLayout(devices_layout, stretch=0)
+        layout.addLayout(group_layout, stretch=1)
+        layout.addWidget(group_progress, stretch=0)
         self.setLayout(layout)
 
         self.on_click_refresh()
@@ -184,12 +181,11 @@ class MainWindow(QWidget):
     def _on_progress(self, args):
         msg, progress = args
         progress = int(progress * 100)
-        self.progress.setText("{}: {}%".format(msg, progress))
         self.progress.setValue(progress)
+        self.progress_label.setText(msg)
 
     def _on_complete(self, args):
-        self.progress.setText("Finished")
-        self.progress.update()
+        self.progress_label.setText("Finished")
         self.unlock_user()
 
     def _on_error(self, msg):
