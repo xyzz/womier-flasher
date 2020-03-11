@@ -117,6 +117,7 @@ class MainWindow(QWidget):
         btn_reboot_bl = QPushButton("Reboot to Bootloader")
         btn_flash_jumploader = QPushButton("Flash Jumploader")
         btn_restore_stock = QPushButton("Revert to Stock Firmware")
+        btn_restore_stock.clicked.connect(self.on_click_revert)
 
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
@@ -264,6 +265,22 @@ class MainWindow(QWidget):
             return
 
         threading.Thread(target=lambda: cmd_flash(self.dev, QMK_OFFSET, firmware, self.on_progress, self.on_complete, self.on_error)).start()
+
+    def on_click_revert(self):
+        reply = QMessageBox.question(self, "Warning", "This is a potentially dangerous operation, are you sure you want to continue?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply != QMessageBox.Yes:
+            return
+
+        self.dev = self.get_active_device()
+        if not self.dev:
+            return
+
+        path = appctxt.get_resource("stock-firmware.bin")
+        with open(path, "rb") as inf:
+            firmware = inf.read()
+
+        threading.Thread(target=lambda: cmd_flash(self.dev, 0, firmware, self.on_progress, self.on_complete, self.on_error)).start()
 
 
 def excepthook(exc_type, exc_value, exc_tb):
