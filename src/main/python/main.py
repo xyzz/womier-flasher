@@ -58,7 +58,7 @@ def cmd_flash(dev, offset, firmware, progress_cb=console_progress, complete_cb=c
         return error_cb("Firmware is too large to flash")
 
     # 1) Initialize
-    progress_cb("Initialize", 0)
+    progress_cb("Initializing device", 0)
     hid_set_feature(dev, struct.pack("<I", CMD_INIT))
     resp = bytes(hid_get_feature(dev))
     if len(resp) != RESPONSE_LEN:
@@ -66,9 +66,10 @@ def cmd_flash(dev, offset, firmware, progress_cb=console_progress, complete_cb=c
     cmd, status = struct.unpack("<II", resp[0:8])
     if cmd != CMD_INIT:
         return error_cb("Failed to initialize: response cmd is 0x{:08X}, expected 0x{:08X}".format(cmd, CMD_INIT))
-    progress_cb("Initialize", 1)
+    progress_cb("Initializing device", 0)
 
     # 2) Prepare for flash
+    progress_cb("Preparing for flash", 0)
     hid_set_feature(dev, struct.pack("<III", CMD_BASE + 5, offset, len(firmware) // 64))
     resp = bytes(hid_get_feature(dev))
     if len(resp) != RESPONSE_LEN:
@@ -78,15 +79,15 @@ def cmd_flash(dev, offset, firmware, progress_cb=console_progress, complete_cb=c
         return error_cb("Failed to prepare: response cmd is 0x{:08X}, expected 0x{:08X}".format(cmd, CMD_PREPARE))
     if status != EXPECTED_STATUS:
         return error_cb("Failed to prepare: response status is 0x{:08X}, expected 0x{:08X}".format(status, EXPECTED_STATUS))
-    progress_cb("Prepare", 1)
+    progress_cb("Preparing for flash", 1)
 
     # 3) Flash
-    progress_cb("Flash", 0)
+    progress_cb("Flashing", 0)
     for addr in range(0, len(firmware), 64):
         chunk = firmware[addr:addr+64]
         hid_set_feature(dev, chunk)
 
-        progress_cb("Flash", (addr + 64) / len(firmware))
+        progress_cb("Flashing", (addr + 64) / len(firmware))
 
     # 4) Reboot
     hid_set_feature(dev, struct.pack("<I", CMD_REBOOT))
@@ -189,6 +190,7 @@ class MainWindow(QWidget):
         self.unlock_user()
 
     def _on_error(self, msg):
+        self.progress_label.setText("Failed")
         QMessageBox.critical(window, "Error", msg)
         self.unlock_user()
 
