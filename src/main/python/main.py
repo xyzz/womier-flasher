@@ -112,6 +112,8 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.dev = None
+
         self.progress_signal.connect(self._on_progress)
         self.complete_signal.connect(self._on_complete)
         self.error_signal.connect(self._on_error)
@@ -172,7 +174,12 @@ class MainWindow(QWidget):
         pass
 
     def unlock_user(self):
-        pass
+        self.close_dev()
+
+    def close_dev(self):
+        if self.dev is not None:
+            self.dev.close()
+            self.dev = None
 
     def _on_progress(self, args):
         msg, progress = args
@@ -239,21 +246,25 @@ class MainWindow(QWidget):
         return True
 
     def on_click_flash_qmk(self):
-        dev = self.get_active_device()
-        if not dev:
+        self.dev = self.get_active_device()
+        if not self.dev:
             return
 
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
         filename = QFileDialog.getOpenFileName(None, "Select firmware to flash", "", "Firmware Files (*.bin)", options=options)[0]
         if not filename:
+            self.close_dev()
             return
 
         with open(filename, "rb") as inf:
             firmware = inf.read()
 
-        if self.sanity_check_qmk_firmware(firmware):
-            threading.Thread(target=lambda: cmd_flash(dev, QMK_OFFSET, firmware, self.on_progress, self.on_complete, self.on_error)).start()
+        if not self.sanity_check_qmk_firmware(firmware):
+            self.close_dev()
+            return
+
+        threading.Thread(target=lambda: cmd_flash(self.dev, QMK_OFFSET, firmware, self.on_progress, self.on_complete, self.on_error)).start()
 
 
 def excepthook(exc_type, exc_value, exc_tb):
