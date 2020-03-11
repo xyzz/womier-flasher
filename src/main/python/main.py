@@ -189,6 +189,7 @@ class MainWindow(QWidget):
 
     def _on_complete(self, args):
         self.progress.setText("Finished")
+        self.progress.update()
         self.unlock_user()
 
     def _on_error(self, msg):
