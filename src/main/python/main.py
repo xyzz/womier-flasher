@@ -203,6 +203,7 @@ class MainWindow(QWidget):
         self.progress_label.setText(msg)
 
     def _on_complete(self, args):
+        self.progress.setValue(100)
         self.progress_label.setText("Finished")
         self.on_click_refresh()
         self.unlock_user()
