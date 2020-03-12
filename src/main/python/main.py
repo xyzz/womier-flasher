@@ -183,13 +183,19 @@ class MainWindow(QWidget):
         layout.addWidget(group_progress, stretch=0)
         self.setLayout(layout)
 
+        self.lockable = [btn_flash_qmk, btn_reboot_bl, btn_flash_jumploader, btn_restore_stock,
+            self.combobox_devices, btn_refresh_devices]
+
         self.on_click_refresh()
 
     def lock_user(self):
-        pass
+        for obj in self.lockable:
+            obj.setEnabled(False)
 
     def unlock_user(self):
         self.close_dev()
+        for obj in self.lockable:
+            obj.setEnabled(True)
 
     def close_dev(self):
         if self.dev is not None:
@@ -282,6 +288,7 @@ class MainWindow(QWidget):
             self.close_dev()
             return
 
+        self.lock_user()
         threading.Thread(target=lambda: cmd_flash(self.dev, QMK_OFFSET, firmware, self.on_progress, self.on_complete, self.on_error)).start()
 
     def on_click_reboot(self):
@@ -289,6 +296,7 @@ class MainWindow(QWidget):
         if not self.dev:
             return
 
+        self.lock_user()
         threading.Thread(target=lambda: cmd_reboot(self.dev, self.on_progress, self.on_complete, self.on_error)).start()
 
     def dangerous_flash(self, path):
@@ -304,6 +312,7 @@ class MainWindow(QWidget):
         with open(path, "rb") as inf:
             firmware = inf.read()
 
+        self.lock_user()
         threading.Thread(target=lambda: cmd_flash(self.dev, 0, firmware, self.on_progress, self.on_complete, self.on_error)).start()
 
     def on_click_revert(self):
