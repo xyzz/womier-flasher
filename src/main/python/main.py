@@ -96,9 +96,7 @@ def cmd_flash(dev, offset, firmware, progress_cb=console_progress, complete_cb=c
 
 def cmd_reboot(dev, progress_cb=console_progress, complete_cb=console_complete, error_cb=console_error):
     progress_cb("Reboot to bootloader", 0)
-    data = b"\x00" + struct.pack("<II", 0x5AA555AA, 0xCC3300FF)
-    data += b"\x00" * (64 - len(data))
-    print(dev.send_feature_report(data))
+    hid_set_feature(dev, struct.pack("<II", 0x5AA555AA, 0xCC3300FF))
     progress_cb("Reboot to bootloader", 0.5)
     time.sleep(5)
     complete_cb()
@@ -235,7 +233,8 @@ class MainWindow(QWidget):
         for dev in hid.enumerate():
             vid, pid = dev["vendor_id"], dev["product_id"]
             if (vid, pid) in DEVICE_DESC:
-                self.combobox_devices.addItem("{} [{:04X}:{:04X}:{:02X}]".format(DEVICE_DESC[(vid, pid)], vid, pid, dev["interface_number"]))
+                self.combobox_devices.addItem("{} [{:04X}:{:04X}:{:02X}:{:02X}]".format(DEVICE_DESC[(vid, pid)], vid, pid,
+                    dev["interface_number"], dev["usage"]))
                 self.devices.append(dev)
 
     def get_active_device(self):
