@@ -1,11 +1,12 @@
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QProgressBar, QGroupBox, \
-    QComboBox, QSizePolicy, QToolButton, QMessageBox, QFileDialog
+    QComboBox, QSizePolicy, QToolButton, QMessageBox, QFileDialog, QRadioButton
 
 import sys
 import hid
 import struct
+import configparser
 import time
 import threading
 import traceback
@@ -26,7 +27,11 @@ EXPECTED_STATUS = 0xFAFAFAFA
 
 DEVICE_DESC = {
     (0x0c45, 0x7698): "Womier K66",
-    (0x0c45, 0x7010): "Womier K66 (bootloader)"
+    (0x5013, 0x320F): "Akko 3084 Bt5.0",
+    (0x0c45, 0x766b): "Kemove DK63",
+    (0x05ac, 0x024f): "Keychron K4",
+    (0x0c45, 0x7010): "SN32F268F (bootloader)",
+    (0x0c45, 0x7040): "SN32F248B (bootloader)",
 }
 
 def hid_set_feature(dev, report):
@@ -112,6 +117,9 @@ class MainWindow(QWidget):
 
         self.dev = None
 
+        self.device_descs = DEVICE_DESC.copy()
+        self.load_devices_ini()
+
         self.progress_signal.connect(self._on_progress)
         self.complete_signal.connect(self._on_complete)
         self.error_signal.connect(self._on_error)
@@ -186,6 +194,15 @@ class MainWindow(QWidget):
 
         self.on_click_refresh()
 
+    def load_devices_ini(self):
+        cf = configparser.ConfigParser()
+        cf.read("devices.ini")
+        for sec in cf.sections():
+            # print(cf.options(sec))
+            vid = int(cf.get(sec,'vid'), 16)
+            pid = int(cf.get(sec,'pid'), 16)
+            self.device_descs.update({(vid, pid): sec})
+
     def lock_user(self):
         for obj in self.lockable:
             obj.setEnabled(False)
@@ -226,14 +243,29 @@ class MainWindow(QWidget):
     def on_error(self, msg):
         self.error_signal.emit(msg)
 
+    def on_toggle_offset(self, rbtn):
+        if rbtn.isChecked() == True:
+            if rbtn.text() == "0x200":
+                self.qmk_offset = 0x200
+            elif rbtn.text() == "0x00":
+                self.qmk_offset = 0x00
+
+    def on_toggle_device_type(self, rbtn):
+        global MAX_FIRMWARE
+        if rbtn.isChecked() == True:
+            if rbtn.text() == "SN32F24x":
+                MAX_FIRMWARE = MAX_FIRMWARE_SN32F240
+            elif rbtn.text() == "SN32F26x":
+                MAX_FIRMWARE = MAX_FIRMWARE_SN32F260
+
     def on_click_refresh(self):
         self.devices = []
         self.combobox_devices.clear()
 
         for dev in hid.enumerate():
             vid, pid = dev["vendor_id"], dev["product_id"]
-            if (vid, pid) in DEVICE_DESC:
-                self.combobox_devices.addItem("{} [{:04X}:{:04X}:{:02X}:{:02X}]".format(DEVICE_DESC[(vid, pid)], vid, pid,
+            if (vid, pid) in self.device_descs:
+                self.combobox_devices.addItem("{} [{:04X}:{:04X}:{:02X}:{:02X}]".format(self.device_descs[(vid, pid)], vid, pid,
                     dev["interface_number"], dev["usage"]))
                 self.devices.append(dev)
 
