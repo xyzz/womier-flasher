@@ -14,9 +14,11 @@ import traceback
 # TODO: dry-run support to ensure flashing doesn't crash
 
 RESPONSE_LEN = 64
-MAX_FIRMWARE = 0x7800
-QMK_OFFSET = 0x200
-QMK_MAX_FIRMWARE = MAX_FIRMWARE - 0x200  # 0x200 for the jumploader
+MAX_FIRMWARE_SN32F260 = 30 * 1024 # 30K
+MAX_FIRMWARE_SN32F240 = 64 * 1024 # 64K
+MAX_FIRMWARE = MAX_FIRMWARE_SN32F260
+QMK_OFFSET_DEFAULT = 0x200
+
 
 CMD_BASE = 0x55AA00
 CMD_INIT = CMD_BASE + 1
@@ -75,7 +77,7 @@ def cmd_flash(dev, offset, firmware, progress_cb=console_progress, complete_cb=c
 
     # 2) Prepare for flash
     progress_cb("Preparing for flash", 0)
-    hid_set_feature(dev, struct.pack("<III", CMD_BASE + 5, offset, len(firmware) // 64))
+    hid_set_feature(dev, struct.pack("<III", CMD_PREPARE, offset, len(firmware) // 64))
     resp = bytes(hid_get_feature(dev))
     if len(resp) != RESPONSE_LEN:
         return error_cb("Failed to prepare: got response of length {}, expected {}".format(len(resp), RESPONSE_LEN))
@@ -120,12 +122,25 @@ class MainWindow(QWidget):
         self.device_descs = DEVICE_DESC.copy()
         self.load_devices_ini()
 
+        self.qmk_offset = QMK_OFFSET_DEFAULT
+
         self.progress_signal.connect(self._on_progress)
         self.complete_signal.connect(self._on_complete)
         self.error_signal.connect(self._on_error)
 
         lbl_warning = QLabel("<font color='red'><b>Make sure jumploader is installed before you flash QMK</b></font>")
         lbl_warning.setWordWrap(True)
+
+        layout_offset = QHBoxLayout()
+        rbtn_qmk_offset_200 = QRadioButton("0x200")
+        rbtn_qmk_offset_200.setChecked(True)
+        rbtn_qmk_offset_200.toggled.connect(lambda:self.on_toggle_offset(rbtn_qmk_offset_200))
+        rbtn_qmk_offset_0 = QRadioButton("0x00")
+        rbtn_qmk_offset_0.toggled.connect(lambda:self.on_toggle_offset(rbtn_qmk_offset_0))
+        layout_offset.addWidget(rbtn_qmk_offset_200)
+        layout_offset.addWidget(rbtn_qmk_offset_0)
+        group_qmk_offset = QGroupBox("qmk offset")
+        group_qmk_offset.setLayout(layout_offset)
 
         btn_flash_qmk = QPushButton("Flash QMK...")
         btn_flash_qmk.clicked.connect(self.on_click_flash_qmk)
@@ -144,6 +159,16 @@ class MainWindow(QWidget):
         self.progress.setRange(0, 100)
         self.progress_label = QLabel("Ready")
 
+        layout_device_type = QHBoxLayout()
+        rbtn_device_type_240 = QRadioButton("SN32F24x")
+        rbtn_device_type_240.setChecked(True)
+        rbtn_device_type_240.toggled.connect(lambda:self.on_toggle_device_type(rbtn_device_type_240))
+        rbtn_device_type_260 = QRadioButton("SN32F26x")
+        rbtn_device_type_260.toggled.connect(lambda:self.on_toggle_device_type(rbtn_device_type_260))
+        layout_device_type.addWidget(rbtn_device_type_260)
+        layout_device_type.addWidget(rbtn_device_type_240)
+
+
         self.combobox_devices = QComboBox()
         btn_refresh_devices = QToolButton()
         btn_refresh_devices.setToolButtonStyle(Qt.ToolButtonTextOnly)
@@ -154,9 +179,17 @@ class MainWindow(QWidget):
         devices_layout.addWidget(self.combobox_devices)
         devices_layout.addWidget(btn_refresh_devices)
 
+        device_group_layout = QVBoxLayout()
+        device_group_layout.addLayout(layout_device_type)
+        device_group_layout.addLayout(devices_layout)
+
+        group_device = QGroupBox("Device")
+        group_device.setLayout(device_group_layout)
+
         layout_qmk = QVBoxLayout()
         layout_qmk.setAlignment(Qt.AlignTop)
         layout_qmk.addWidget(lbl_warning)
+        layout_qmk.addWidget(group_qmk_offset)
         layout_qmk.addWidget(btn_flash_qmk)
         layout_qmk.addWidget(lbl_help)
 
@@ -184,7 +217,7 @@ class MainWindow(QWidget):
         group_layout.addWidget(group_stock)
 
         layout = QVBoxLayout()
-        layout.addLayout(devices_layout, stretch=0)
+        layout.addWidget(group_device, stretch=0)
         layout.addLayout(group_layout, stretch=1)
         layout.addWidget(group_progress, stretch=0)
         self.setLayout(layout)
@@ -283,11 +316,11 @@ class MainWindow(QWidget):
             self._on_error("Failed to open the device. You might not have sufficient permissions.")
             return None
 
-    def sanity_check_qmk_firmware(self, firmware):
+    def sanity_check_qmk_firmware(self, firmware, offset=0):
         # check the size so we don't trash bootloader
         # (ok, we wouldn't overwrite it anyway as it's checked again in cmd_flash)
-        if len(firmware) > QMK_MAX_FIRMWARE:
-            self._on_error("Firmware is too large: 0x{:X} max allowed is 0x{:X}".format(len(firmware), QMK_MAX_FIRMWARE))
+        if len(firmware) + offset > MAX_FIRMWARE:
+            self._on_error("Firmware is too large: 0x{:X} max allowed is 0x{:X}".format(len(firmware), MAX_FIRMWARE-offset))
             return False
         if len(firmware) < 0x100:
             self._on_error("Firmware is too small")
@@ -315,12 +348,12 @@ class MainWindow(QWidget):
         with open(filename, "rb") as inf:
             firmware = inf.read()
 
-        if not self.sanity_check_qmk_firmware(firmware):
+        if not self.sanity_check_qmk_firmware(firmware, self.qmk_offset):
             self.close_dev()
             return
 
         self.lock_user()
-        threading.Thread(target=lambda: cmd_flash(self.dev, QMK_OFFSET, firmware, self.on_progress, self.on_complete, self.on_error)).start()
+        threading.Thread(target=lambda: cmd_flash(self.dev, self.qmk_offset, firmware, self.on_progress, self.on_complete, self.on_error)).start()
 
     def on_click_reboot(self):
         self.dev = self.get_active_device()
